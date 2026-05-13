@@ -20,7 +20,13 @@ def write_rss(
     description: str = "AI assisted literature watch",
 ) -> Path:
     works_list = list(works)
-    rss = ET.Element("rss", version="2.0")
+    
+    # 1. 在根节点引入 dc 和 prism 命名空间
+    rss = ET.Element("rss", version="2.0", attrib={
+        "xmlns:dc": "http://purl.org/dc/elements/1.1/",
+        "xmlns:prism": "http://prismstandard.org/namespaces/basic/2.0/"
+    })
+    
     channel = ET.SubElement(rss, "channel")
     ET.SubElement(channel, "title").text = title
     ET.SubElement(channel, "link").text = link
@@ -34,14 +40,22 @@ def write_rss(
             ET.SubElement(item, "link").text = work.url
         ET.SubElement(item, "guid").text = work.identifier
         ET.SubElement(item, "pubDate").text = _format_rfc822(work.published)
+        
         if work.venue:
             ET.SubElement(item, "category").text = work.venue
+            # 2. 新增标签：帮助 Zotero 识别期刊名称
+            ET.SubElement(item, "dc:source").text = work.venue
+            ET.SubElement(item, "prism:publicationName").text = work.venue
+            
         description_lines = []
         if work.abstract:
             description_lines.append(work.abstract)
         published_text = work.published.isoformat() if work.published else "Unknown"
         description_lines.append(f"Published: {published_text}")
-        description_lines.append(f"Venue: {work.venue or 'Unknown'}")
+        
+        # 3. 将 Venue 从描述正文中剥离（注释或删除此行）
+        # description_lines.append(f"Venue: {work.venue or 'Unknown'}")
+        
         ET.SubElement(item, "description").text = "\n".join(description_lines)
 
     tree = ET.ElementTree(rss)
@@ -50,7 +64,6 @@ def write_rss(
     tree.write(path, encoding="utf-8", xml_declaration=True)
     logger.info("Wrote RSS feed with %d items to %s", len(works_list), path)
     return path
-
 
 def _format_rfc822(dt: datetime | None) -> str:
     if dt is None:
