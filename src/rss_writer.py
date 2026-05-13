@@ -41,20 +41,28 @@ def write_rss(
         ET.SubElement(item, "guid").text = work.identifier
         ET.SubElement(item, "pubDate").text = _format_rfc822(work.published)
         
-        if work.venue:
-            ET.SubElement(item, "category").text = work.venue
-            # 2. 新增标签：帮助 Zotero 识别期刊名称
-            ET.SubElement(item, "dc:source").text = work.venue
-            ET.SubElement(item, "prism:publicationName").text = work.venue
+        # --- 新增 1：处理 bioRxiv 期刊名统一 ---
+        venue_name = work.venue
+        # 通过 source 字段或 DOI 判定是否为 bioRxiv 预印本
+        if work.source.lower() == "biorxiv" or (work.doi and "10.1101/" in work.doi):
+            venue_name = "bioRxiv"
+
+        if venue_name:
+            ET.SubElement(item, "category").text = venue_name
+            ET.SubElement(item, "dc:source").text = venue_name
+            ET.SubElement(item, "prism:publicationName").text = venue_name
             
+        # --- 新增 2：提取并写入作者信息 ---
+        if work.authors:
+            for author in work.authors:
+                # Zotero 会自动抓取 dc:creator 作为文献的 Creator/Author
+                ET.SubElement(item, "dc:creator").text = author
+                
         description_lines = []
         if work.abstract:
             description_lines.append(work.abstract)
         published_text = work.published.isoformat() if work.published else "Unknown"
         description_lines.append(f"Published: {published_text}")
-        
-        # 3. 将 Venue 从描述正文中剥离（注释或删除此行）
-        # description_lines.append(f"Venue: {work.venue or 'Unknown'}")
         
         ET.SubElement(item, "description").text = "\n".join(description_lines)
 
